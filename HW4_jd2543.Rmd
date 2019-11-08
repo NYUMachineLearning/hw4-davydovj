@@ -1,0 +1,79 @@
+---
+title: 'Machine Learning 2019: Feature Selection'
+author: "James Davydov"
+date: "October 24, 2019"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load relevant libraries, include=FALSE}
+install.packages("randomForest")
+library(tidyverse)
+library(caret)
+library(mlbench)
+library(glmnet)
+library(randomForest)
+```
+
+
+## Homework
+
+1. Compare the most important features from at least 2 different classes of feature selection methods covered in this tutorial with any reasonable machine learning dataset from mlbench. Do these feature selection methods provide similar results? 
+
+```{r}
+#Importing the Vehicle dataset in mlbench
+data("Vehicle")
+```
+
+
+```{r}
+#Utilizing randomForest for feature selection 
+set.seed(1127)
+n <- 0.75*nrow(Vehicle)
+trainsmp <- sample(nrow(Vehicle), size = n, replace = FALSE)
+
+Vehic_train <- Vehicle[trainsmp, ]
+Vehic_test <- Vehicle[-trainsmp, ] #Creating training and testing groups
+
+#Using the randomFoest function to create a model
+Vehic_rf <- randomForest(Class ~ ., data = Vehic_train, importance = TRUE, oob.times = 15, confusion = TRUE)
+
+#Using the importance function shows the most important feature is "Max.L.Ra" with a MeanDecreaseAccuracy of ~42%
+importance(Vehic_rf)
+varImpPlot(Vehic_rf) #Visualizing Accuracy and Gini values of each feature
+```
+
+```{r}
+#Utilizing RFE for feature selection
+#Defining control statement for RFE model
+control = rfeControl(functions = caretFuncs, number = 2)
+
+#Using the RFE function to create a model
+vehic_rfe = rfe(Vehicle[,1:18], Vehicle[,19], sizes = c(3, 5, 12), rfeControl = control, method = "svmLinear")
+
+#The results show that the top 5 features are Max.L.Ra, Skew.Maxis, D.Circ, Sc.Var.Maxis, and Holl.R. The model shows that Max.L.Ra contributes to ~82% of the prediction but for the optimal model accuracy, RFE requires use of all 18 data features which is not the most practical option.
+vehic_rfe
+vehic_rfe$variables
+```
+
+While not being able to directly compare the values of accuracy of each feature selection method, both methods correctly selected the most important feature and overlap predicting 3 out of the 5 more important features of the dataset. 
+
+2. Attempt a feature selection method not covered in this tutorial (backward elimination, forward propogation, etc.)
+
+```{r}
+library(nnet)
+test <- multinom(Class ~ ., data = Vehic_train)
+summary(test)
+
+z <- summary(test)$coefficients/summary(test)$standard.errors
+p <- (1 - pnorm(abs(z), 0, 1))*2
+p
+```
+
+Here we use a multinomial logistic regression model and apply it to our training set for vehicle data. We manually calculate the z- and p- values, which can directly show how significant certain variables are to defining a certain vehicle type. This requires a little bit more work in looking through and identifying the "most" significant variables, compared to randomForest or RFE models which list the top variables. This makes this way of feature selection not the most favored. 
